@@ -1,12 +1,21 @@
+import torch
 from datasets import load_dataset
 from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
-from transformers import BertTokenizer, BertForSequenceClassification, Trainer, TrainingArguments
+from transformers import BertTokenizer, BertForSequenceClassification, Trainer, TrainingArguments, BertModel
 
 # Load the appropriateness dataset
 dataset = load_dataset('timonziegenbein/appropriateness-corpus')
-
+print(dataset)
 # Load a pre-trained BERT tokenizer
 tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+
+# Define all the labels (14 labels in total, including higher categories and subcategories)
+label_columns = [
+    'Inappropriateness', 'Toxic Emotions', 'Excessive Intensity', 'Emotional Deception',
+    'Missing Commitment', 'Missing Seriousness', 'Missing Openness',
+    'Missing Intelligibility', 'Unclear Meaning', 'Missing Relevance', 'Confusing Reasoning',
+    'Detrimental Orthography', 'Reason Unclassified', 'Other Reasons'
+]
 
 
 # Tokenization function to prepare the data for the BERT model
@@ -14,22 +23,27 @@ def tokenize_function(examples):
     return tokenizer(examples['post_text'], padding="max_length", truncation=True, max_length=128)
 
 
-# Apply the tokenization function to the dataset
-tokenized_datasets = dataset.map(tokenize_function, batched=True)
+# Tokenization function to prepare the data for the BERT model
+def tokenize_and_encode_labels(examples):
+    # Tokenize the post text
+    encoding = tokenizer(examples['post_text'], padding="max_length", truncation=True)
 
-# Define all the labels (14 labels in total, including higher categories and subcategories)
-label_columns = [
-    'Inappropriateness', 'Toxic Emotions', 'Excessive Intensity', 'Emotional Deception',
-    'Missing Commitment', 'Missing Seriousness', 'Missing Openness',
-    'Missing Intelligibility', 'Unclear Meaning', 'Missing Relevance', 'Confusing Reasoning',
-    'Detrimental Orthography', 'Reason Unclassified'
-]
+    # Create a multi-label tensor for each example
+    labels = [examples[label] for label in label_columns]
+    encoding['labels'] = torch.tensor(labels, dtype=torch.float)  # Use float for multi-label loss
+    return encoding
+
+
+# Apply the tokenization function to the dataset
+tokenized_datasets = dataset.map(tokenize_and_encode_labels, batched=False)
 
 # Set the columns for PyTorch compatibility
-tokenized_datasets.set_format(type='torch', columns=['input_ids', 'attention_mask'] + label_columns)
+tokenized_datasets.set_format(type='torch', columns=['input_ids', 'attention_mask', "labels"])
 
 # Load a pre-trained BERT model for multi-label classification
 model = BertForSequenceClassification.from_pretrained('bert-base-uncased', num_labels=len(label_columns))
+
+print(model)
 
 
 # Define the custom compute_metrics function for multi-label classification

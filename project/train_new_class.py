@@ -5,86 +5,86 @@ import numpy as np
 from torch.optim import AdamW
 from datasets import load_dataset
 from torch.nn.utils.rnn import pad_sequence
-from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score,precision_recall_fscore_support
+from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score, precision_recall_fscore_support
 from transformers import BertTokenizer, BertForSequenceClassification, Trainer, TrainingArguments, EarlyStoppingCallback
 
+# Defining the label
+label_columns = ['vulgarity']
 
-#Defining all the labels
-label_columns = [
-    'Inappropriateness', 'Toxic Emotions', 'Excessive Intensity', 'Emotional Deception',
-    'Missing Commitment', 'Missing Seriousness', 'Missing Openness',
-    'Missing Intelligibility', 'Unclear Meaning', 'Missing Relevance', 'Confusing Reasoning',
-    'Detrimental Orthography', 'Reason Unclassified', 'Other Reasons'
-]
-
-#Disabling warnings
+# Disabling warnings
 warnings.filterwarnings("ignore")
 logging.getLogger("wandb").setLevel(logging.ERROR)
 
-#Loading dataset
-dataset = load_dataset('timonziegenbein/appropriateness-corpus')
+# Loading dataset
+dataset = load_dataset('civility-lab/incivility-arizona-daily-star-comments')
 
-#Loading tokenizer
+# Loading tokenizer
 tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
 
-#Tokenization function
+
+# Tokenization function
 def tokenize_and_encode_labels(examples):
     encoding = tokenizer(
-        examples['post_text'],
+        examples['text'],  # Adjusted for the text field in this dataset
         padding='max_length',
         truncation=True,
-        max_length=128,  #Limiting sequence length for efficiency
+        max_length=128,  # Limiting sequence length for efficiency
         return_tensors='pt'
     )
 
-    #Preparing the labels
+    # Preparing the labels
     labels = [
         torch.tensor([examples[label][i] for label in label_columns], dtype=torch.float)
         for i in range(len(examples[label_columns[0]]))
     ]
 
-    #Padding the labels if variable-length
+    # Padding the labels if variable-length
     labels_padded = pad_sequence(labels, batch_first=True, padding_value=0.0)
 
-    #Adding labels tensor to the encoding
+    # Adding labels tensor to the encoding
     encoding['labels'] = labels_padded
 
     return encoding
 
-#Applying tokenization
+
+# Applying tokenization
 tokenized_datasets = dataset.map(tokenize_and_encode_labels, batched=True)
 tokenized_datasets.set_format(type='torch', columns=['input_ids', 'attention_mask', 'labels'])
 
-#Loading model
+# Loading model
 model = BertForSequenceClassification.from_pretrained(
     'bert-base-uncased',
     num_labels=len(label_columns),
     problem_type="multi_label_classification"
 )
 
-#Freezing first 6 layers
+# Freezing first 6 layers
 for param in model.bert.parameters():
     param.requires_grad = False
 for param in model.bert.encoder.layer[6:].parameters():
     param.requires_grad = True
 
-#Calculating class weights dynamically
+
+# Calculating class weights dynamically
 def calculate_class_weights(dataset, labels):
     label_counts = torch.zeros(len(labels))
     for example in dataset:
         label_counts += torch.tensor(example['labels'], dtype=torch.float)
-    class_weights = 1.0 / (label_counts + 1e-6)  #Avoiding division by zero
+    class_weights = 1.0 / (label_counts + 1e-6)  # Avoiding division by zero
     return class_weights / class_weights.sum()
+
 
 class_weights = calculate_class_weights(tokenized_datasets['train'], label_columns)
 class_weights = class_weights.to('cuda')
 
-#Loss function with class weights
+
+# Loss function with class weights
 def compute_loss(logits, labels):
     loss_fn = torch.nn.BCEWithLogitsLoss(pos_weight=class_weights)
     return loss_fn(logits, labels)
 
-#Computing metrics with threshold tuning
+
+# Computing metrics with threshold tuning
 def compute_metrics(eval_pred):
     logits, labels = eval_pred
     probs = torch.sigmoid(torch.tensor(logits))
@@ -127,7 +127,8 @@ def compute_metrics(eval_pred):
         "f1": avg_f1
     }
 
-#Training arguments
+
+# Training arguments
 training_args = TrainingArguments(
     output_dir='./results',
     evaluation_strategy="epoch",
@@ -151,9 +152,9 @@ trainer = Trainer(
     compute_metrics=compute_metrics,
 )
 
-#Training the model
+# Training the model
 trainer.train()
 
-#Saving the fine-tuned model
-model.save_pretrained('./appropriateness-classifier')
-tokenizer.save_pretrained('./appropriateness-classifier')
+# Saving the fine-tuned model
+model.save_pretrained('./vulgarity-classifier')
+tokenizer.save_pretrained('./vulgarity-classifier')

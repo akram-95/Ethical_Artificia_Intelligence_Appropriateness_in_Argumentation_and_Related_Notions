@@ -15,13 +15,13 @@ DIMS = [
 # Load the dataset
 print("Loading dataset...")
 dataset = load_dataset('timonziegenbein/appropriateness-corpus')
-
+import os
+print(os.path.isdir('./appropriateness-classifier'))
 # Load the classifier and tokenizer
-MODEL_PATH = './appropriateness-classifier'
+MODEL_PATH = './bert-appropriateness-classifier'
 print("Loading tokenizer and model...")
 classifier_tokenizer = BertTokenizer.from_pretrained(MODEL_PATH)
 classifier_model = BertForSequenceClassification.from_pretrained(MODEL_PATH)
-
 
 def classify_texts(texts, threshold=0.55):
     """Classify a list of texts and return predictions."""
@@ -38,7 +38,6 @@ def classify_texts(texts, threshold=0.55):
         predictions = (probabilities >= threshold).astype(int)
         all_predictions.append(predictions)
     return all_predictions
-
 
 # Extract texts and ground truth from the dataset's test split
 print("Extracting test data...")

@@ -77,7 +77,8 @@ def calculate_class_weights(dataset, labels):
     return class_weights / class_weights.sum()
 
 class_weights = calculate_class_weights(tokenized_datasets['train'], label_columns)
-class_weights = class_weights.to('cuda')
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+class_weights = class_weights.to(device)
 
 #Loss function with class weights
 def compute_loss(logits, labels):
@@ -132,12 +133,12 @@ training_args = TrainingArguments(
     output_dir='./results',
     evaluation_strategy="epoch",
     save_strategy="epoch",
-    learning_rate=2e-5,
+    learning_rate=3e-5,
     per_device_train_batch_size=16,
     per_device_eval_batch_size=16,
-    num_train_epochs=5,
+    num_train_epochs=10,
     weight_decay=0.01,
-    fp16=True,
+    fp16=torch.cuda.is_available(),
     metric_for_best_model="f1",
     greater_is_better=True
 )
@@ -155,5 +156,5 @@ trainer = Trainer(
 trainer.train()
 
 #Saving the fine-tuned model
-model.save_pretrained('./appropriateness-classifier')
-tokenizer.save_pretrained('./appropriateness-classifier')
+model.save_pretrained('./bert-appropriateness-classifier')
+tokenizer.save_pretrained('./bert-appropriateness-classifier')

@@ -1,0 +1,13 @@
+{
+  "name": "appropriateness-classifier",
+  "version": "1.0.0",
+  "description": "",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/akram-95/Ethical_Artificia_Intelligence_Appropriateness_in_Argumentation_and_Related_Notions.git"
+  },
+  "private": true
+}
